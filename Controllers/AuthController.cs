@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using FantasyAppAPI.Models;
 using FantasyAppAPI.Services;
-using FantasyAppModels;
-
 
 namespace FantasyAppAPI.Controllers
 {
@@ -17,24 +16,14 @@ namespace FantasyAppAPI.Controllers
         }
 
         [HttpPost("login")]
-        public ActionResult<AuthResponse> Login([FromBody] LoginRequest request)
+        public IActionResult Login([FromBody] LoginRequest loginRequest)
         {
-            try
-            {
-                var response = _authService.Login(request.Username, request.Password);
-                return Ok(response);
-            }
-            catch (UnauthorizedAccessException)
-            {
+            var token = _authService.Authenticate(loginRequest);
+
+            if (token == null)
                 return Unauthorized();
-            }
+
+            return Ok(new { Token = token });
         }
     }
-
-    public class LoginRequest
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
-    }
 }
-

@@ -1,37 +1,58 @@
-﻿using FantasyAppModels;
-using FantasyAppData;
-using FantasyAppData.Repositories;
-
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Configuration;
+using FantasyAppAPI.Models;
 
 namespace FantasyAppAPI.Services
 {
     public class AuthService
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IConfiguration _config;
+        private readonly List<User> _users = new List<User>(); 
 
-        public AuthService(IUserRepository userRepository)
+        public AuthService(IConfiguration config)
         {
-            _userRepository = userRepository;
+            _config = config;
         }
 
-        public AuthResponse Login(string username, string password)
+        public string Authenticate(LoginRequest loginRequest)
         {
-            var user = _userRepository.GetUserByUsername(username);
-            if (user != null && user.ValidatePassword(password))
+            var user = _users.FirstOrDefault(u => u.Username == loginRequest.Username);
+            if (user == null || !VerifyPassword(loginRequest.Password, user.PasswordHash))
+                return null;
+
+            return GenerateJwtToken(user);
+        }
+
+        private string GenerateJwtToken(User user)
+        {
+            var claims = new[]
             {
-                return new AuthResponse
-                {
-                    Token = GenerateToken(user),
-                    Expiration = DateTime.UtcNow.AddHours(1)
-                };
-            }
-            throw new UnauthorizedAccessException("Invalid username or password.");
+                new Claim(JwtRegisteredClaimNames.Sub, user.Username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("ThisisatestthisIsOnlyATest"));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: null,
+                audience: null,
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(30),
+                signingCredentials: creds);
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        private string GenerateToken(User user)
+        private bool VerifyPassword(string password, string passwordHash)
         {
-            // Token generation logic (JWT, etc.)
-            return "generated_token";
+            return password == passwordHash;
         }
     }
 }
